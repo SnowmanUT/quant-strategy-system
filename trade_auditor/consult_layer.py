@@ -19,7 +19,7 @@ import json
 import ai_client
 import coaching_layer
 
-MAX_HISTORY_MESSAGES = 20
+MAX_HISTORY_MESSAGES = 21
 
 CONSULT_SYSTEM_PROMPT_BASE = """You are a trading-strategy consultant helping a funded-account \
 trader pick methods/models suited to prop-firm evaluation trading. This is an ongoing \
@@ -62,30 +62,34 @@ class ConsultError(RuntimeError):
 def build_daily_pnl_summary(dash_data):
     """
     Per-day net P&L across dash_data["trade_replay"]["days"], plus the best
-    day's share of total gross (winning-only) profit -- the number a
-    consistency rule check actually needs.
+    day's share of total net profit (winning and losing days both) -- the
+    number a consistency rule check actually needs.
     """
     days = dash_data.get("trade_replay", {}).get("days", {})
     day_rows = []
-    gross_profit = 0.0
+    total_net_profit = 0.0
     for day in days.values():
         trades = day.get("trades", [])
         net = round(sum((t.get("actual_profit") or 0) for t in trades), 2)
         day_rows.append({"date": day.get("date"), "net_pnl": net, "n_trades": len(trades)})
-        gross_profit += sum(p for p in (t.get("actual_profit") for t in trades) if p and p > 0)
+        total_net_profit += net
 
     if not day_rows:
-        return {"n_days": 0, "best_day": None, "worst_day": None, "best_day_pct_of_gross_profit": None}
+        return {"n_days": 0, "best_day": None, "worst_day": None, "best_day_pct_of_total_net_profit": None}
 
     day_rows.sort(key=lambda d: d["net_pnl"], reverse=True)
     best, worst = day_rows[0], day_rows[-1]
-    best_pct = round(100 * best["net_pnl"] / gross_profit, 1) if gross_profit > 0 and best["net_pnl"] > 0 else None
+    best_pct = (
+        round(100 * best["net_pnl"] / total_net_profit, 1)
+        if total_net_profit > 0 and best["net_pnl"] > 0
+        else None
+    )
 
     return {
         "n_days": len(day_rows),
         "best_day": best,
         "worst_day": worst,
-        "best_day_pct_of_gross_profit": best_pct,
+        "best_day_pct_of_total_net_profit": best_pct,
     }
 
 
@@ -100,7 +104,7 @@ def build_consult_system_prompt(dash_data):
     )
 
 
-def get_reply(message, history, dash_data, timeout=45):
+def get_reply(history, dash_data, timeout=45):
     """
     Build the consult system prompt (fresh findings from the CURRENT
     dash_data), take the last MAX_HISTORY_MESSAGES turns of history
@@ -112,6 +116,13 @@ def get_reply(message, history, dash_data, timeout=45):
 
     system_prompt = build_consult_system_prompt(dash_data)
     capped = history[-MAX_HISTORY_MESSAGES:]
+    # Defensive guard: history always alternates user/assistant and ends on
+    # the just-added user turn (odd length), so with an odd MAX_HISTORY_MESSAGES
+    # this slice always starts on "user". If MAX_HISTORY_MESSAGES is ever
+    # changed to an even number, don't silently send a list starting with
+    # "assistant" -- the Anthropic Messages API rejects that with a 400.
+    if capped and capped[0]["role"] == "assistant":
+        capped = capped[1:]
     api_messages = [{"role": h["role"], "content": h["content"]} for h in capped]
 
     try:

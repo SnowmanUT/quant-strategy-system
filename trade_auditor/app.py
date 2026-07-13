@@ -368,13 +368,20 @@ def consult_post():
         working_history = data["history"] + [{"role": "user", "content": message, "ts": _now_iso()}]
 
         try:
-            reply = consult_layer.get_reply(message, working_history, dash_data)
+            reply = consult_layer.get_reply(working_history, dash_data)
         except consult_layer.ConsultError as e:
             return jsonify({"ok": False, "error": str(e)}), 200
 
-        # Belt-and-suspenders: re-check in case a future change narrows the
-        # lock's scope around the AI call. Currently unreachable since /run
-        # can't wipe while this lock is held.
+        # This re-check is load-bearing, not dead code: build_dashboard()
+        # (called by /run) writes a fresh data/dash_data.json -- with a new
+        # meta.generated_at run_id -- as part of its own execution, BEFORE
+        # /run ever acquires _consult_lock to wipe consult_history.json.
+        # That write to dash_data.json isn't behind _consult_lock at all, so
+        # a /consult call that started under the old run_id, held the lock
+        # through the ~45s AI call above, and only now re-reads dash_data.json
+        # can observe a run_id that already moved on -- even though the lock
+        # ordering does guarantee /run's consult-history wipe itself can't
+        # interleave with this block.
         current_dash_data = _read_dash_data()
         current_run_id = current_dash_data["meta"]["generated_at"] if current_dash_data else None
         if current_run_id != run_id:
