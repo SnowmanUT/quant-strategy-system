@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trade Auditor // Setup</title>
+<style>
+  :root{
+    --bg:#05070a; --panel:#0b0f14; --panel2:#0e1420; --border:#1c2733; --text:#cfe0ea; --muted:#5f7385;
+    --cyan:#22d3ee; --cyan-dim:#0e5866; --purple:#b083f0; --purple-dim:#3a2a5c;
+    --green:#3ddc84; --red:#ff6a6a; --amber:#f5c451;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);}
+  body{
+    font-family:'JetBrains Mono','SFMono-Regular',Menlo,Consolas,ui-monospace,monospace;
+    font-size:13px;line-height:1.55;padding:24px;max-width:820px;margin:0 auto;
+  }
+  h1{font-size:15px;letter-spacing:.06em;text-transform:uppercase;margin:0 0 4px;}
+  .sub{color:var(--muted);font-size:11.5px;margin-bottom:20px;}
+  .tag{display:inline-block;font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:3px;border:1px solid currentColor;font-weight:600;}
+  .tag.det{color:var(--cyan);border-color:var(--cyan-dim);background:rgba(34,211,238,.07);}
+  .tag.ai{color:var(--purple);border-color:var(--purple-dim);background:rgba(176,131,240,.09);}
+
+  .stepper{display:flex;margin-bottom:20px;}
+  .step{flex:1;padding:9px 12px;border:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.05em;text-align:center;color:var(--muted);cursor:pointer;}
+  .step:not(:last-child){border-right:none;}
+  .step:first-child{border-radius:6px 0 0 6px;}
+  .step:last-child{border-radius:0 6px 6px 0;}
+  .step.active{color:var(--cyan);background:rgba(34,211,238,.07);border-color:var(--cyan-dim);}
+  .step.done{color:var(--green);}
+
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:18px 20px;margin-bottom:16px;}
+  .panel h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--text);margin:0 0 14px;}
+  .hidden{display:none !important;}
+
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
+  .card{border:1px solid var(--border);border-radius:6px;padding:14px;cursor:pointer;background:var(--panel2);}
+  .card:hover{border-color:var(--cyan);}
+  .card.selected{border-color:var(--cyan);background:rgba(34,211,238,.06);}
+  .card h3{margin:0 0 6px;font-size:12.5px;}
+  .card p{margin:0;color:var(--muted);font-size:11px;}
+
+  input[type=file]{display:block;margin-top:8px;font-size:11px;color:var(--muted);}
+  input[type=text], input[type=number], select, textarea{
+    background:var(--panel2);border:1px solid var(--border);color:var(--text);
+    padding:7px 9px;border-radius:4px;font-family:inherit;font-size:12px;width:100%;
+  }
+  textarea{resize:vertical;min-height:70px;}
+  label{display:block;font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;}
+  .field{margin-bottom:12px;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+
+  .btn{background:var(--panel2);color:var(--text);border:1px solid var(--border);padding:7px 14px;border-radius:4px;font-family:inherit;font-size:11.5px;cursor:pointer;}
+  .btn:hover{border-color:var(--cyan);color:var(--cyan);}
+  .btn:disabled{opacity:.4;cursor:default;}
+  .btn.primary{border-color:var(--cyan);color:var(--cyan);background:rgba(34,211,238,.08);}
+  .btn.ai{border-color:var(--purple);color:var(--purple);background:rgba(176,131,240,.08);}
+  .btn.ai:hover{background:var(--purple);color:#0a0510;}
+
+  .subtabs{display:flex;gap:6px;margin-bottom:14px;}
+  .subtab{padding:6px 12px;border:1px solid var(--border);border-radius:4px;font-size:11px;cursor:pointer;color:var(--muted);}
+  .subtab.active{color:var(--cyan);border-color:var(--cyan-dim);background:rgba(34,211,238,.06);}
+  .subtab.active.ai{color:var(--purple);border-color:var(--purple-dim);background:rgba(176,131,240,.08);}
+
+  .preset-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px;}
+  .preset-btn{padding:8px 10px;border:1px solid var(--border);border-radius:4px;font-size:11px;text-align:left;cursor:pointer;background:var(--panel2);color:var(--text);}
+  .preset-btn:hover{border-color:var(--cyan);color:var(--cyan);}
+
+  .readout{margin-top:14px;padding:12px 14px;border-left:3px solid var(--cyan);background:rgba(34,211,238,.05);font-size:12px;}
+
+  .msg{font-size:11.5px;margin-top:8px;}
+  .msg.ok{color:var(--green);}
+  .msg.err{color:var(--red);}
+  .msg.warn{color:var(--amber);}
+
+  .lib-row{display:flex;gap:8px;align-items:center;margin-bottom:14px;}
+  .lib-row select{flex:1;}
+
+  footer{text-align:center;color:var(--muted);font-size:10.5px;padding:16px 0;}
+</style>
+</head>
+<body>
+
+<h1>&gt; trade_auditor.setup</h1>
+<div class="sub">Zero API keys required for the audit itself -- only the optional AI paths (strategy translation, coaching) need one.</div>
+
+<div class="stepper">
+  <div class="step active" data-step="1">1. Data</div>
+  <div class="step" data-step="2">2. Strategy</div>
+  <div class="step" data-step="3">3. Run</div>
+</div>
+
+<!-- STEP 1: DATA -->
+<div class="panel" id="panelStep1">
+  <h2>Step 1 -- Data <span class="tag det">Deterministic</span></h2>
+  <div class="cards">
+    <div class="card" id="cardSample">
+      <h3>Use sample data</h3>
+      <p>Generates a fresh, realistic momentum trader's log from live Yahoo intraday bars when you hit Run.</p>
+    </div>
+    <div class="card" id="cardUpload">
+      <h3>Upload a NinjaTrader CSV</h3>
+      <p>Your own trade export. Validated immediately -- clear errors if columns or timestamps don't check out.</p>
+    </div>
+  </div>
+  <div id="uploadArea" class="hidden">
+    <input type="file" id="fileInput" accept=".csv">
+    <div id="uploadMsg" class="msg"></div>
+  </div>
+  <div style="margin-top:16px;text-align:right;">
+    <button class="btn primary" id="toStep2" disabled>Next: Strategy &rarr;</button>
+  </div>
+</div>
+
+<!-- STEP 2: STRATEGY -->
+<div class="panel hidden" id="panelStep2">
+  <h2>Step 2 -- Strategy</h2>
+
+  <div class="lib-row">
+    <select id="libSelect"><option value="">-- load a saved strategy --</option></select>
+    <button class="btn" id="libLoadBtn">Load</button>
+  </div>
+
+  <div class="subtabs">
+    <div class="subtab active" data-tab="preset">Preset <span class="tag det" style="margin-left:4px;">Deterministic</span></div>
+    <div class="subtab ai" data-tab="ai">Plain English <span class="tag ai" style="margin-left:4px;">AI</span></div>
+    <div class="subtab" data-tab="manual">Manual <span class="tag det" style="margin-left:4px;">Deterministic</span></div>
+  </div>
+
+  <div id="tabPreset">
+    <div class="preset-grid" id="presetGrid"></div>
+  </div>
+
+  <div id="tabAi" class="hidden">
+    <div class="field">
+      <label>Trading family</label>
+      <select id="aiFamily"></select>
+    </div>
+    <div class="field">
+      <label>Describe how you trade, in your own words</label>
+      <textarea id="aiFreeText" placeholder="e.g. I buy the first pullback after a strong open, trail my stop, done by 11am..."></textarea>
+    </div>
+    <button class="btn ai" id="aiGenerateBtn">Generate rules with AI</button>
+    <div id="aiMsg" class="msg"></div>
+  </div>
+
+  <div id="tabManual" class="hidden"></div>
+
+  <!-- the one canonical rules form every path writes into -->
+  <div class="panel" style="background:var(--panel2);margin-top:16px;">
+    <h2 style="font-size:11px;">Rules (editable regardless of how they got here)</h2>
+    <div class="row2">
+      <div class="field"><label>Direction</label>
+        <select id="rDirection"><option value="both">Both</option><option value="long_only">Long only</option><option value="short_only">Short only</option></select>
+      </div>
+      <div class="field"><label>Exit style</label>
+        <select id="rExitStyle"><option value="fixed">Fixed</option><option value="breakeven">Breakeven</option><option value="trailing">Trailing</option><option value="time">Time</option></select>
+      </div>
+    </div>
+    <div class="row3">
+      <div class="field"><label>Stop %</label><input type="number" id="rStopPct" step="0.01" value="0.5"></div>
+      <div class="field"><label>Target % (blank = none)</label><input type="number" id="rTargetPct" step="0.01" value="1.0"></div>
+      <div class="field"><label>Slippage (bps)</label><input type="number" id="rSlippageBps" step="0.1" value="2"></div>
+    </div>
+    <div class="row3">
+      <div class="field"><label>Session start (ET)</label><input type="text" id="rSessionStart" value="09:30"></div>
+      <div class="field"><label>Session end (ET)</label><input type="text" id="rSessionEnd" value="16:00"></div>
+      <div class="field"><label>Max size</label><input type="number" id="rMaxSize" value="100"></div>
+    </div>
+    <div class="readout" id="readoutBox"></div>
+  </div>
+
+  <div class="row2" style="margin-top:14px;">
+    <div class="field"><label>Save as (strategy name, optional)</label><input type="text" id="strategyName" placeholder="e.g. Morning Momentum v1"></div>
+    <div class="field"><label>Declared family (used in the style check)</label><select id="declaredFamily"></select></div>
+  </div>
+
+  <div style="margin-top:16px;display:flex;justify-content:space-between;">
+    <button class="btn" id="toStep1">&larr; Back</button>
+    <button class="btn primary" id="toStep3">Next: Run &rarr;</button>
+  </div>
+</div>
+
+<!-- STEP 3: RUN -->
+<div class="panel hidden" id="panelStep3">
+  <h2>Step 3 -- Run <span class="tag det">Deterministic</span></h2>
+  <p class="sub" style="margin-bottom:16px;">Engine &rarr; build_dashboard &rarr; dash_data.json &rarr; redirect to the dashboard.</p>
+  <div id="runSummary" style="font-size:12px;margin-bottom:16px;"></div>
+  <button class="btn primary" id="runBtn">Run Audit</button>
+  <div id="runMsg" class="msg"></div>
+</div>
+
+<footer>trade_auditor // layer 5 // python run.py</footer>
+
+<script>
+const STATE = {
+  dataSource: null, uploadFilename: null,
+  aiProposal: null,
+};
+
+function $(id){ return document.getElementById(id); }
+function showMsg(el2, text, cls){ el2.textContent = text; el2.className = "msg "+(cls||""); }
+
+// ---------------- stepper nav ----------------
+function goToStep(n){
+  [1,2,3].forEach(i=>{
+    $("panelStep"+i).classList.toggle("hidden", i!==n);
+    const stepEl = document.querySelector(`.step[data-step="${i}"]`);
+    stepEl.classList.toggle("active", i===n);
+    stepEl.classList.toggle("done", i<n);
+  });
+  if(n===3) renderRunSummary();
+}
+document.querySelectorAll(".step").forEach(s=>{
+  s.addEventListener("click", ()=>{ const n=parseInt(s.dataset.step); if(n===1 || STATE.dataSource) goToStep(n); });
+});
+$("toStep2").addEventListener("click", ()=>goToStep(2));
+$("toStep1").addEventListener("click", ()=>goToStep(1));
+$("toStep3").addEventListener("click", ()=>goToStep(3));
+
+// ---------------- STEP 1: data ----------------
+$("cardSample").addEventListener("click", ()=>{
+  STATE.dataSource = "sample";
+  $("cardSample").classList.add("selected"); $("cardUpload").classList.remove("selected");
+  $("uploadArea").classList.add("hidden");
+  $("toStep2").disabled = false;
+});
+$("cardUpload").addEventListener("click", ()=>{
+  $("cardUpload").classList.add("selected"); $("cardSample").classList.remove("selected");
+  $("uploadArea").classList.remove("hidden");
+});
+$("fileInput").addEventListener("change", async (ev)=>{
+  const file = ev.target.files[0];
+  if(!file) return;
+  const fd = new FormData(); fd.append("file", file);
+  showMsg($("uploadMsg"), "Validating...", "");
+  try{
+    const resp = await fetch("/upload", {method:"POST", body:fd});
+    const data = await resp.json();
+    if(!resp.ok || !data.ok){
+      showMsg($("uploadMsg"), data.error || "Upload failed.", "err");
+      $("toStep2").disabled = true;
+      return;
+    }
+    STATE.dataSource = "upload";
+    STATE.uploadFilename = data.filename;
+    showMsg($("uploadMsg"), `${data.n_trades} trades, symbols: ${data.symbols.join(", ")}`, "ok");
+    $("toStep2").disabled = false;
+  }catch(err){
+    showMsg($("uploadMsg"), "Could not reach the server: "+err.message, "err");
+  }
+});
+
+// ---------------- STEP 2: strategy ----------------
+document.querySelectorAll(".subtab").forEach(t=>{
+  t.addEventListener("click", ()=>{
+    document.querySelectorAll(".subtab").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+    ["preset","ai","manual"].forEach(name=>{
+      $("tab"+name.charAt(0).toUpperCase()+name.slice(1)).classList.toggle("hidden", name!==t.dataset.tab);
+    });
+  });
+});
+
+function readForm(){
+  const targetRaw = $("rTargetPct").value;
+  return {
+    direction: $("rDirection").value,
+    stop_pct: parseFloat($("rStopPct").value),
+    target_pct: targetRaw === "" ? null : parseFloat(targetRaw),
+    session_start: $("rSessionStart").value.trim(),
+    session_end: $("rSessionEnd").value.trim(),
+    max_size: parseFloat($("rMaxSize").value),
+    exit_style: $("rExitStyle").value,
+    slippage_bps: parseFloat($("rSlippageBps").value),
+  };
+}
+function writeForm(rules){
+  if(!rules) return;
+  if(rules.direction) $("rDirection").value = rules.direction;
+  if(rules.stop_pct !== undefined && rules.stop_pct !== null) $("rStopPct").value = rules.stop_pct;
+  $("rTargetPct").value = (rules.target_pct === null || rules.target_pct === undefined) ? "" : rules.target_pct;
+  if(rules.session_start) $("rSessionStart").value = rules.session_start;
+  if(rules.session_end) $("rSessionEnd").value = rules.session_end;
+  if(rules.max_size !== undefined && rules.max_size !== null) $("rMaxSize").value = rules.max_size;
+  if(rules.exit_style) $("rExitStyle").value = rules.exit_style;
+  if(rules.slippage_bps !== undefined && rules.slippage_bps !== null) $("rSlippageBps").value = rules.slippage_bps;
+  updateReadout();
+}
+
+// live R:R + breakeven readout, mirrors rules.compute_readout()
+function updateReadout(){
+  const stop = parseFloat($("rStopPct").value);
+  const targetRaw = $("rTargetPct").value;
+  const box = $("readoutBox");
+  if(!stop || stop <= 0){
+    box.textContent = "Enter a stop % greater than 0 to see reward:risk and breakeven win rate.";
+    return;
+  }
+  if(targetRaw === "" || targetRaw === null){
+    box.textContent = `No fixed target -- you're risking ${stop}% per trade; reward is open-ended (managed by the exit style instead).`;
+    return;
+  }
+  const target = parseFloat(targetRaw);
+  if(!target || target <= 0){
+    box.textContent = "Enter a target % greater than 0, or leave it blank for no fixed target.";
+    return;
+  }
+  const r = target/stop;
+  const breakeven = 1/(1+r);
+  box.innerHTML = `You're risking <b>${stop}%</b> to make <b>${target}%</b>, a <b>${r.toFixed(2)}:1</b> reward-to-risk. `+
+    `You need to win more than <b>${(breakeven*100).toFixed(0)}%</b> of your trades to break even, before commissions and slippage.`;
+}
+["rStopPct","rTargetPct"].forEach(id=> $(id).addEventListener("input", updateReadout));
+updateReadout();
+
+// presets
+fetch("/presets").then(r=>r.json()).then(presets=>{
+  const grid = $("presetGrid");
+  Object.entries(presets).forEach(([name, rules])=>{
+    const b = document.createElement("button");
+    b.className = "preset-btn";
+    b.textContent = name;
+    b.addEventListener("click", ()=> writeForm(rules));
+    grid.appendChild(b);
+  });
+}).catch(()=>{ $("presetGrid").textContent = "Could not load presets."; });
+
+// AI families
+fetch("/families").then(r=>r.json()).then(data=>{
+  const sel = $("aiFamily");
+  data.families.forEach(f=>{ const o=document.createElement("option"); o.value=f; o.textContent=f; sel.appendChild(o); });
+  const declared = $("declaredFamily");
+  declared.innerHTML = '<option value="">-- none --</option>';
+  data.families.forEach(f=>{ const o=document.createElement("option"); o.value=f; o.textContent=f; declared.appendChild(o); });
+}).catch(()=>{});
+
+$("aiGenerateBtn").addEventListener("click", async ()=>{
+  const family = $("aiFamily").value;
+  const freeText = $("aiFreeText").value.trim();
+  if(!freeText){ showMsg($("aiMsg"), "Describe how you trade first.", "err"); return; }
+  $("aiGenerateBtn").disabled = true;
+  showMsg($("aiMsg"), "Asking the AI...", "");
+  try{
+    const resp = await fetch("/translate", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({family, free_text: freeText})});
+    const data = await resp.json();
+    if(!resp.ok || !data.ok){ showMsg($("aiMsg"), data.error || "Translation failed.", "err"); return; }
+    STATE.aiProposal = data;
+    if(data.validation_error){
+      showMsg($("aiMsg"), `AI response needed a fix: ${data.validation_error}. Check the form below before continuing.`, "warn");
+    } else {
+      showMsg($("aiMsg"), "Rules generated -- review and edit below, nothing is saved until you run.", "ok");
+    }
+    if(data.proposed_rules) writeForm(data.proposed_rules);
+    if(data.family) $("declaredFamily").value = data.family;
+  }catch(err){
+    showMsg($("aiMsg"), "Could not reach the server: "+err.message, "err");
+  }finally{
+    $("aiGenerateBtn").disabled = false;
+  }
+});
+
+// strategy library
+function loadLibrary(){
+  fetch("/strategies").then(r=>r.json()).then(data=>{
+    const sel = $("libSelect");
+    sel.innerHTML = '<option value="">-- load a saved strategy --</option>';
+    (data.names||[]).forEach(name=>{ const o=document.createElement("option"); o.value=name; o.textContent=name; sel.appendChild(o); });
+  }).catch(()=>{});
+}
+loadLibrary();
+$("libLoadBtn").addEventListener("click", async ()=>{
+  const name = $("libSelect").value;
+  if(!name) return;
+  const resp = await fetch("/strategies/"+encodeURIComponent(name));
+  const data = await resp.json();
+  if(data.ok){
+    writeForm(data.strategy.rules);
+    if(data.strategy.family) $("declaredFamily").value = data.strategy.family;
+    $("strategyName").value = name;
+  }
+});
+
+// ---------------- STEP 3: run ----------------
+function renderRunSummary(){
+  const rules = readForm();
+  $("runSummary").innerHTML = `
+    <div><span class="tag det">Data</span> ${STATE.dataSource === "sample" ? "Fresh sample from live Yahoo" : "Uploaded CSV (" + (STATE.uploadFilename||"") + ")"}</div>
+    <div style="margin-top:8px;"><span class="tag det">Rules</span> ${rules.direction}, stop ${rules.stop_pct}%, target ${rules.target_pct===null?"none":rules.target_pct+"%"}, ${rules.exit_style}, session ${rules.session_start}-${rules.session_end}, max ${rules.max_size}</div>
+  `;
+}
+
+$("runBtn").addEventListener("click", async ()=>{
+  const rules = readForm();
+  const body = {
+    data_source: STATE.dataSource,
+    upload_filename: STATE.uploadFilename,
+    rules,
+    strategy_name: $("strategyName").value.trim() || null,
+    playbook: STATE.aiProposal ? STATE.aiProposal.free_text : null,
+    family: $("declaredFamily").value || null,
+    origin: STATE.aiProposal ? "ai" : "manual",
+  };
+  $("runBtn").disabled = true;
+  showMsg($("runMsg"), "Running the pipeline -- this fetches real bars and can take a moment...", "");
+  try{
+    const resp = await fetch("/run", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)});
+    const data = await resp.json();
+    if(!resp.ok || !data.ok){ showMsg($("runMsg"), data.error || "Run failed.", "err"); $("runBtn").disabled=false; return; }
+    showMsg($("runMsg"), "Done -- opening the dashboard...", "ok");
+    window.location.href = data.redirect || "/dashboard";
+  }catch(err){
+    showMsg($("runMsg"), "Could not reach the server: "+err.message, "err");
+    $("runBtn").disabled = false;
+  }
+});
+</script>
+</body>
+</html>
