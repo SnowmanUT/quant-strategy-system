@@ -94,6 +94,36 @@
   #coachBtn:disabled{opacity:.5;cursor:default;}
   #coachStatus{font-size:11px;color:var(--muted);margin-top:8px;}
 
+  /* ---- consult panel ---- */
+  #consultMessages{
+    max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;
+    margin-bottom:12px;padding-right:4px;
+  }
+  #consultMessages.empty{color:var(--muted);font-style:italic;}
+  .consult-msg{padding:8px 12px;border-radius:6px;font-size:12.5px;max-width:85%;}
+  .consult-msg.user{align-self:flex-end;background:var(--cyan-dim);color:var(--text);}
+  .consult-msg.assistant{align-self:flex-start;background:var(--purple-dim);color:var(--text);}
+  .consult-msg p{margin:0 0 6px 0;}
+  .consult-msg p:last-child{margin-bottom:0;}
+  #consultInputRow{display:flex;gap:8px;}
+  #consultInput{
+    flex:1;background:var(--panel2);border:1px solid var(--border);color:var(--text);
+    font-family:inherit;font-size:12.5px;padding:8px 10px;border-radius:4px;resize:vertical;min-height:38px;
+  }
+  #consultSendBtn{
+    background:var(--purple-dim);color:var(--purple);border:1px solid var(--purple);
+    padding:7px 14px;border-radius:4px;font-family:inherit;font-size:11px;cursor:pointer;
+    letter-spacing:.05em;text-transform:uppercase;
+  }
+  #consultSendBtn:hover{background:var(--purple);color:#0a0510;}
+  #consultSendBtn:disabled{opacity:.5;cursor:default;}
+  #consultClearBtn{
+    background:none;color:var(--muted);border:1px solid var(--border);
+    padding:7px 14px;border-radius:4px;font-family:inherit;font-size:11px;cursor:pointer;
+  }
+  #consultClearBtn:hover{color:var(--text);border-color:var(--muted);}
+  #consultStatus{font-size:11px;color:var(--muted);margin-top:8px;}
+
   /* ---- KPI row ---- */
   .kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px;}
   .kpi{
@@ -211,6 +241,17 @@
     <button id="coachBtn">Ask the coach</button>
     <div id="coachStatus"></div>
   </div>
+</div>
+
+<div class="panel">
+  <h2>Consult <span class="tag ai">AI Coaching</span></h2>
+  <div id="consultMessages" class="empty">No messages yet -- ask about trading methods or models suited to your prop-firm rules.</div>
+  <div id="consultInputRow">
+    <textarea id="consultInput" placeholder="e.g. I'm on an Apex 50k combine, 2500 trailing drawdown -- what should I test?"></textarea>
+    <button id="consultSendBtn">Send</button>
+    <button id="consultClearBtn">Clear</button>
+  </div>
+  <div id="consultStatus"></div>
 </div>
 
 <div class="kpi-row" id="kpiRow"></div>
@@ -817,6 +858,84 @@ function renderDiscipline(){
   d.assumptions.forEach(a=>{ const li=document.createElement("li"); li.textContent=a; list.appendChild(li); });
 }
 
+// ============================================================================
+// consult panel: multi-turn, persisted via GET/POST /consult
+// ============================================================================
+function renderConsultMessages(history){
+  const box = document.getElementById("consultMessages");
+  if(!history || history.length === 0){
+    box.className = "empty";
+    box.textContent = "No messages yet -- ask about trading methods or models suited to your prop-firm rules.";
+    return;
+  }
+  box.className = "";
+  box.innerHTML = history.map(m =>
+    `<div class="consult-msg ${m.role}">${mdToHtml(m.content)}</div>`
+  ).join("");
+  box.scrollTop = box.scrollHeight;
+}
+
+async function initConsult(){
+  const input = document.getElementById("consultInput");
+  const sendBtn = document.getElementById("consultSendBtn");
+  const clearBtn = document.getElementById("consultClearBtn");
+  const status = document.getElementById("consultStatus");
+
+  async function loadHistory(){
+    try{
+      const resp = await fetch("/consult");
+      const data = await resp.json();
+      renderConsultMessages(data.history || []);
+      if(!data.ai_available){
+        input.disabled = true; sendBtn.disabled = true;
+        status.innerHTML = `<span class="amber">set a key to enable coaching</span>`;
+      }
+    }catch(err){
+      status.innerHTML = `<span class="red">Could not reach the server.</span>`;
+    }
+  }
+
+  sendBtn.addEventListener("click", async ()=>{
+    const message = input.value.trim();
+    if(!message) return;
+    sendBtn.disabled = true; input.disabled = true;
+    status.textContent = "Thinking...";
+    try{
+      const resp = await fetch("/consult", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({message}),
+      });
+      const data = await resp.json().catch(()=>({}));
+      if(!resp.ok || data.ok === false){
+        status.innerHTML = `<span class="amber">${data.error || ("HTTP "+resp.status)}</span>`;
+        return;  // leave the typed message in the input for retry -- not persisted server-side
+      }
+      renderConsultMessages(data.history);
+      input.value = "";
+      status.textContent = "";
+    }catch(err){
+      status.innerHTML = `<span class="red">Consult endpoint isn't reachable</span> (expects POST /consult from run.py's Flask app -- make sure it's running).`;
+    }finally{
+      sendBtn.disabled = false; input.disabled = false;
+    }
+  });
+
+  clearBtn.addEventListener("click", async ()=>{
+    clearBtn.disabled = true;
+    try{
+      await fetch("/consult/clear", {method: "POST"});
+      renderConsultMessages([]);
+      status.textContent = "";
+    }catch(err){
+      status.innerHTML = `<span class="red">Could not clear.</span>`;
+    }finally{
+      clearBtn.disabled = false;
+    }
+  });
+
+  await loadHistory();
+}
+
 (function init(){
   if(!DASH){ document.body.innerHTML = '<p style="padding:40px;color:#f87171;">No dashboard data embedded -- run build_dashboard.py to generate dashboard.html.</p>'; return; }
   renderMeta();
@@ -829,6 +948,7 @@ function renderDiscipline(){
   renderEquityAndHour();
   renderLeaks();
   renderDiscipline();
+  initConsult();
 })();
 </script>
 </body>
