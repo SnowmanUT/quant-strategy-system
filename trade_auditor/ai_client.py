@@ -131,7 +131,7 @@ def ai_available():
         return False
 
 
-def _call_anthropic(api_key, model, system_prompt, user_message, timeout, max_tokens):
+def _call_anthropic(api_key, model, system_prompt, messages, timeout, max_tokens):
     headers = {
         "x-api-key": api_key,
         "anthropic-version": ANTHROPIC_VERSION,
@@ -141,7 +141,7 @@ def _call_anthropic(api_key, model, system_prompt, user_message, timeout, max_to
         "model": model,
         "max_tokens": max_tokens,
         "system": system_prompt,
-        "messages": [{"role": "user", "content": user_message}],
+        "messages": messages,
     }
     resp = requests.post(ANTHROPIC_MESSAGES_URL, headers=headers, json=body, timeout=timeout)
     if resp.status_code != 200:
@@ -154,7 +154,7 @@ def _call_anthropic(api_key, model, system_prompt, user_message, timeout, max_to
     return text
 
 
-def _call_openai(api_key, model, system_prompt, user_message, timeout, max_tokens):
+def _call_openai(api_key, model, system_prompt, messages, timeout, max_tokens):
     headers = {
         "Authorization": f"Bearer {api_key}",
         "content-type": "application/json",
@@ -162,10 +162,7 @@ def _call_openai(api_key, model, system_prompt, user_message, timeout, max_token
     body = {
         "model": model,
         "max_tokens": max_tokens,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message},
-        ],
+        "messages": [{"role": "system", "content": system_prompt}] + messages,
     }
     resp = requests.post(OPENAI_CHAT_URL, headers=headers, json=body, timeout=timeout)
     if resp.status_code != 200:
@@ -180,7 +177,7 @@ def _call_openai(api_key, model, system_prompt, user_message, timeout, max_token
     return text
 
 
-def _call_deepseek(api_key, model, system_prompt, user_message, timeout, max_tokens):
+def _call_deepseek(api_key, model, system_prompt, messages, timeout, max_tokens):
     # DeepSeek's chat completions API mirrors OpenAI's request/response shape.
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -189,10 +186,7 @@ def _call_deepseek(api_key, model, system_prompt, user_message, timeout, max_tok
     body = {
         "model": model,
         "max_tokens": max_tokens,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message},
-        ],
+        "messages": [{"role": "system", "content": system_prompt}] + messages,
     }
     resp = requests.post(DEEPSEEK_CHAT_URL, headers=headers, json=body, timeout=timeout)
     if resp.status_code != 200:
@@ -207,11 +201,12 @@ def _call_deepseek(api_key, model, system_prompt, user_message, timeout, max_tok
     return text
 
 
-def call_ai(system_prompt, user_message, timeout=DEFAULT_TIMEOUT_SECONDS, max_tokens=DEFAULT_MAX_TOKENS):
+def call_ai_conversation(system_prompt, messages, timeout=DEFAULT_TIMEOUT_SECONDS, max_tokens=DEFAULT_MAX_TOKENS):
     """
-    Send a system + user message to whichever provider the resolved API key
-    belongs to. Returns the raw text response. Raises AIClientError with one
-    clear line on any failure (no key, bad key format, timeout, HTTP error).
+    Send a system prompt + a list of {"role": "user"|"assistant", "content": str}
+    turns to whichever provider the resolved API key belongs to. Returns the
+    raw text response. Raises AIClientError with one clear line on any
+    failure (no key, bad key format, timeout, HTTP error).
     """
     api_key, provider = resolve_key_and_provider()
     if api_key is None:
@@ -225,10 +220,10 @@ def call_ai(system_prompt, user_message, timeout=DEFAULT_TIMEOUT_SECONDS, max_to
 
     try:
         if provider == "anthropic":
-            return _call_anthropic(api_key, model, system_prompt, user_message, timeout, max_tokens)
+            return _call_anthropic(api_key, model, system_prompt, messages, timeout, max_tokens)
         if provider == "deepseek":
-            return _call_deepseek(api_key, model, system_prompt, user_message, timeout, max_tokens)
-        return _call_openai(api_key, model, system_prompt, user_message, timeout, max_tokens)
+            return _call_deepseek(api_key, model, system_prompt, messages, timeout, max_tokens)
+        return _call_openai(api_key, model, system_prompt, messages, timeout, max_tokens)
     except requests.exceptions.Timeout:
         raise AIClientError(f"{provider.title()} API request timed out after {timeout}s.")
     except requests.exceptions.ConnectionError as e:
@@ -237,6 +232,18 @@ def call_ai(system_prompt, user_message, timeout=DEFAULT_TIMEOUT_SECONDS, max_to
         raise
     except Exception as e:
         raise AIClientError(f"Unexpected {provider.title()} API client error: {e}")
+
+
+def call_ai(system_prompt, user_message, timeout=DEFAULT_TIMEOUT_SECONDS, max_tokens=DEFAULT_MAX_TOKENS):
+    """
+    Send a system + single user message to whichever provider the resolved
+    API key belongs to. Returns the raw text response. Raises AIClientError
+    with one clear line on any failure (no key, bad key format, timeout,
+    HTTP error).
+    """
+    return call_ai_conversation(
+        system_prompt, [{"role": "user", "content": user_message}], timeout=timeout, max_tokens=max_tokens
+    )
 
 
 if __name__ == "__main__":

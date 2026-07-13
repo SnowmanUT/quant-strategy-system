@@ -235,8 +235,10 @@ ALL PASS
 
 - [ ] **Step 5: Sanity-check the real DeepSeek key still works end to end (this repo has one configured in `.env`)**
 
-Run: `.venv/bin/python ai_client.py`
-Expected: `Provider: deepseek, model: deepseek-chat` (unchanged from before this task — confirms `resolve_key_and_provider`/`get_model` weren't touched).
+`ai_client.py` run standalone does NOT read `.env` -- only `run.py`'s `load_dotenv()` does that, for the actual server process. To check `ai_client.py` in isolation, source `.env` into the shell manually first:
+
+Run: `env $(cat .env | xargs) .venv/bin/python ai_client.py`
+Expected: `Provider: deepseek, model: deepseek-chat` (unchanged from before this task -- confirms `resolve_key_and_provider`/`get_model` weren't touched).
 
 - [ ] **Step 6: Commit**
 
