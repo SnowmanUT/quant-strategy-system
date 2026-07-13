@@ -12,9 +12,13 @@ The single entry point: `python run.py`
 app.py itself prints the headline numbers to the terminal every time a
 /run pipeline finishes, so the whole flow -- wizard through to dashboard --
 is screen-recordable from this one terminal window.
+
+Also loads .env (if present, gitignored) for local API-key convenience --
+see load_dotenv() below. Real env vars always win over .env.
 """
 
 import importlib
+import os
 import sys
 import threading
 import time
@@ -23,6 +27,23 @@ import webbrowser
 REQUIRED_PACKAGES = ["flask", "pandas", "numpy", "yfinance", "requests"]
 PORT = 5050
 URL = f"http://127.0.0.1:{PORT}/"
+
+
+def load_dotenv(path=".env"):
+    """Minimal .env loader: KEY=VALUE per line, '#' comments, no quoting rules.
+    Never overrides a real environment variable already set."""
+    if not os.path.exists(path):
+        return
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key:
+                os.environ.setdefault(key, value)
 
 
 def check_deps():
@@ -48,6 +69,7 @@ def open_browser_when_ready():
 
 
 def main():
+    load_dotenv()
     check_deps()
     import app as app_module  # import after the dep check so a clean message shows first on a fresh install
 
