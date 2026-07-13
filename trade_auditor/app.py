@@ -24,11 +24,14 @@ import uuid
 
 from flask import Flask, jsonify, request, send_file, Response
 
+import pandas as pd
+
 import ai_client
 import bars as bars_mod
 import build_dashboard
 import coaching_layer
 import fetch_and_gen
+import import_tradovate
 import rules as rules_mod
 import strategy_ai
 import trades_io
@@ -65,16 +68,46 @@ def index():
 
 @app.route("/upload", methods=["POST"])
 def upload():
-    """Validate an uploaded NinjaTrader-style CSV via trades_io, with clear errors."""
-    if "file" not in request.files:
+    """
+    Validate one or more uploaded NinjaTrader-style or Tradovate Performance
+    CSVs, with clear errors. Multiple files (e.g. one per prop-firm account)
+    are each auto-detected/converted individually, then merged into a single
+    trade log for the run.
+    """
+    files = [f for f in request.files.getlist("file") if f.filename]
+    if not files:
         return jsonify({"ok": False, "error": "No file uploaded."}), 400
-    f = request.files["file"]
-    if not f.filename:
-        return jsonify({"ok": False, "error": "No file selected."}), 400
 
-    filename = f"{uuid.uuid4().hex}_{os.path.basename(f.filename)}"
+    frames = []
+    source_formats = set()
+    for f in files:
+        tmp_path = os.path.join(UPLOAD_DIR, f"{uuid.uuid4().hex}_{os.path.basename(f.filename)}")
+        f.save(tmp_path)
+        try:
+            raw_df = pd.read_csv(tmp_path)
+        except Exception as e:
+            os.remove(tmp_path)
+            return jsonify({"ok": False, "error": f"Could not read '{f.filename}': {e}"}), 400
+
+        if import_tradovate.is_tradovate_export(raw_df):
+            source_formats.add("tradovate")
+            account_label = os.path.splitext(os.path.basename(f.filename))[0]
+            try:
+                frame = import_tradovate.convert_dataframe(raw_df, account_label=account_label)
+            except ValueError as e:
+                os.remove(tmp_path)
+                return jsonify({"ok": False, "error": f"'{f.filename}': {e}"}), 400
+        else:
+            source_formats.add("ninjatrader")
+            frame = raw_df
+        os.remove(tmp_path)
+        frames.append(frame)
+
+    combined = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
+
+    filename = f"{uuid.uuid4().hex}_merged.csv" if len(files) > 1 else f"{uuid.uuid4().hex}_{os.path.basename(files[0].filename)}"
     save_path = os.path.join(UPLOAD_DIR, filename)
-    f.save(save_path)
+    combined.to_csv(save_path, index=False)
 
     try:
         trades_df = trades_io.load_trades(save_path)
@@ -86,6 +119,8 @@ def upload():
     return jsonify({
         "ok": True,
         "filename": filename,
+        "source_format": "+".join(sorted(source_formats)),
+        "n_files": len(files),
         "n_trades": len(trades_df),
         "symbols": symbols,
         "date_range": [start.isoformat(), end.isoformat()] if start is not None else None,

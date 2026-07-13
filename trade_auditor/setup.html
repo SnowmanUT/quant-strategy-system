@@ -101,12 +101,12 @@
       <p>Generates a fresh, realistic momentum trader's log from live Yahoo intraday bars when you hit Run.</p>
     </div>
     <div class="card" id="cardUpload">
-      <h3>Upload a NinjaTrader CSV</h3>
-      <p>Your own trade export. Validated immediately -- clear errors if columns or timestamps don't check out.</p>
+      <h3>Upload a trade export</h3>
+      <p>NinjaTrader or Tradovate Performance CSV -- format auto-detected. Select multiple files (e.g. one per account) to merge them into a single run. Validated immediately, clear errors if columns or timestamps don't check out.</p>
     </div>
   </div>
   <div id="uploadArea" class="hidden">
-    <input type="file" id="fileInput" accept=".csv">
+    <input type="file" id="fileInput" accept=".csv" multiple>
     <div id="uploadMsg" class="msg"></div>
   </div>
   <div style="margin-top:16px;text-align:right;">
@@ -232,10 +232,11 @@ $("cardUpload").addEventListener("click", ()=>{
   $("uploadArea").classList.remove("hidden");
 });
 $("fileInput").addEventListener("change", async (ev)=>{
-  const file = ev.target.files[0];
-  if(!file) return;
-  const fd = new FormData(); fd.append("file", file);
-  showMsg($("uploadMsg"), "Validating...", "");
+  const files = ev.target.files;
+  if(!files || !files.length) return;
+  const fd = new FormData();
+  for(const file of files) fd.append("file", file);
+  showMsg($("uploadMsg"), files.length > 1 ? `Validating ${files.length} files...` : "Validating...", "");
   try{
     const resp = await fetch("/upload", {method:"POST", body:fd});
     const data = await resp.json();
@@ -246,7 +247,8 @@ $("fileInput").addEventListener("change", async (ev)=>{
     }
     STATE.dataSource = "upload";
     STATE.uploadFilename = data.filename;
-    showMsg($("uploadMsg"), `${data.n_trades} trades, symbols: ${data.symbols.join(", ")}`, "ok");
+    const filesNote = data.n_files > 1 ? `${data.n_files} files merged -- ` : "";
+    showMsg($("uploadMsg"), `${filesNote}${data.n_trades} trades, symbols: ${data.symbols.join(", ")}`, "ok");
     $("toStep2").disabled = false;
   }catch(err){
     showMsg($("uploadMsg"), "Could not reach the server: "+err.message, "err");
